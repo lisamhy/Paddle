@@ -345,3 +345,10 @@ inline bool operator!=(small_vector_impl<T> &LHS, array_ref<T> RHS) {
 }
 
 }  // namespace paddle
+
+
+namespace phi {
+  
+using IntArrayRef = paddle::array_ref<int64_t>;
+
+}  // namespace phi

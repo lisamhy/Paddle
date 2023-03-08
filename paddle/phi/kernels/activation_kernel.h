@@ -119,6 +119,7 @@ void PowKernel(const Context& dev_ctx,
                const Scalar& factor,
                DenseTensor* out);
 
+
 template <typename T, typename Context>
 DenseTensor Pow(const Context& dev_ctx,
                 const DenseTensor& x,
@@ -129,5 +130,49 @@ DenseTensor Pow(const Context& dev_ctx,
   PowKernel<T, Context>(dev_ctx, x, factor, &out);
   return out;
 }
+
+#define DEFINE_ACTIVATION_FUNC(name)      \
+  template <typename T, typename Context> \
+  DenseTensor name(                       \
+      const Context& dev_ctx, const DenseTensor& x) { \
+       DenseTensor out;                               \
+       MetaTensor meta_out(out);                      \
+       UnchangedInferMeta(x, &meta_out);              \
+       name##Kernel<T, Context>(dev_ctx, x, &out);    \
+       return out;                                    \
+  }
+
+DEFINE_ACTIVATION_FUNC(Sin)
+DEFINE_ACTIVATION_FUNC(Cos)
+DEFINE_ACTIVATION_FUNC(Tan)
+DEFINE_ACTIVATION_FUNC(Asin)
+DEFINE_ACTIVATION_FUNC(Atan)
+DEFINE_ACTIVATION_FUNC(Acos)
+DEFINE_ACTIVATION_FUNC(Sinh)
+DEFINE_ACTIVATION_FUNC(Cosh)
+DEFINE_ACTIVATION_FUNC(Asinh)
+DEFINE_ACTIVATION_FUNC(Acosh)
+DEFINE_ACTIVATION_FUNC(Atanh)
+DEFINE_ACTIVATION_FUNC(Relu)
+DEFINE_ACTIVATION_FUNC(Tanh)
+DEFINE_ACTIVATION_FUNC(TanhShrink)
+DEFINE_ACTIVATION_FUNC(Silu)
+DEFINE_ACTIVATION_FUNC(Exp)
+DEFINE_ACTIVATION_FUNC(Expm1)
+DEFINE_ACTIVATION_FUNC(Reciprocal)
+DEFINE_ACTIVATION_FUNC(Square)
+DEFINE_ACTIVATION_FUNC(Sqrt)
+DEFINE_ACTIVATION_FUNC(Rsqrt)
+DEFINE_ACTIVATION_FUNC(Softsign)
+DEFINE_ACTIVATION_FUNC(Sigmoid)
+DEFINE_ACTIVATION_FUNC(LogSigmoid)
+DEFINE_ACTIVATION_FUNC(Log)
+DEFINE_ACTIVATION_FUNC(Log2)
+DEFINE_ACTIVATION_FUNC(Log10)
+DEFINE_ACTIVATION_FUNC(Log1p)
+DEFINE_ACTIVATION_FUNC(Round)
+DEFINE_ACTIVATION_FUNC(Floor)
+DEFINE_ACTIVATION_FUNC(Ceil)
+DEFINE_ACTIVATION_FUNC(Negative)
 
 }  // namespace phi

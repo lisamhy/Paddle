@@ -15,6 +15,7 @@
 #pragma once
 
 #include "paddle/phi/core/dense_tensor.h"
+#include "paddle/phi/infermeta/unary.h"
 
 namespace phi {
 
@@ -24,5 +25,18 @@ void WhereKernel(const Context& ctx,
                  const DenseTensor& x,
                  const DenseTensor& y,
                  DenseTensor* out);
+
+template <typename T, typename Context>
+DenseTensor Where(const Context& ctx,
+                 const DenseTensor& condition,
+                 const DenseTensor& x,
+                 const DenseTensor& y) {
+    DenseTensor out;
+    MetaTensor meta_out(&out); 
+    UnchangedInferMeta(x, &meta_out);
+    WhereKernel<T, Context>(ctx, condition, x, y, &out);
+    return out;                                 
+}
+
 
 }  // namespace phi

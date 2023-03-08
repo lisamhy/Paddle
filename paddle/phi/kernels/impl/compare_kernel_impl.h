@@ -17,6 +17,7 @@
 #include "paddle/phi/core/dense_tensor.h"
 #include "paddle/phi/kernels/compare_kernel.h"
 #include "paddle/phi/kernels/funcs/compare_functors.h"
+#include "paddle/phi/infermeta/unary.h"
 
 namespace phi {
 
@@ -70,6 +71,27 @@ DEFINE_COMPARE_KERNEL(Equal, funcs::EqualFunctor, funcs::EqualFunctor)
 DEFINE_COMPARE_KERNEL(NotEqual, funcs::NotEqualFunctor, funcs::NotEqualFunctor)
 #undef DEFINE_COMPARE_KERNEL
 
+
+#define DEFINE_COMPARE_FUNC(name)        \
+  template <typename T, typename Context>                          \
+  DenseTensor name(const Context& ctx,                            \
+                    const DenseTensor& x,                          \
+                    const DenseTensor& y) {                        \
+    DenseTensor out;                                               \
+    MetaTensor meta_out(out);                                       \
+    UnchangedInferMeta(x, &meta_out);                               \
+    name##Kernel<T, Context>(ctx, x, y, &out);                      \
+    return out;                                                     \
+  }
+
+DEFINE_COMPARE_FUNC(LessThan)
+DEFINE_COMPARE_FUNC(LessEqual)
+DEFINE_COMPARE_FUNC(GreaterThan)
+DEFINE_COMPARE_FUNC(GreaterEqual)
+DEFINE_COMPARE_FUNC(Equal)
+DEFINE_COMPARE_FUNC(NotEqual)
+#undef DEFINE_COMPARE_FUNC
+
 #define DEFINE_COMPARE_ALL_KERNEL(compare_all_kernel, functor)    \
   template <typename T, typename Context>                         \
   void compare_all_kernel(const Context& ctx,                     \
@@ -81,5 +103,21 @@ DEFINE_COMPARE_KERNEL(NotEqual, funcs::NotEqualFunctor, funcs::NotEqualFunctor)
 
 DEFINE_COMPARE_ALL_KERNEL(EqualAllKernel, funcs::EqualFunctor)
 #undef DEFINE_COMPARE_ALL_KERNEL
+
+
+#define DEFINE_COMPARE_ALL_FUNC(name)      \
+  template <typename T, typename Context>                          \
+  DenseTensor name(const Context& ctx,                             \
+                    const DenseTensor& x,                          \
+                    const DenseTensor& y) {                        \
+    DenseTensor out;                                               \
+    MetaTensor meta_out(out);                                       \
+    UnchangedInferMeta(x, &meta_out);                               \
+    EqualAllKernel<T, Context>(ctx, x, y, &out);                \
+    return out;                                                     \
+  }
+
+DEFINE_COMPARE_ALL_FUNC(EqualAll)
+#undef DEFINE_COMPARE_ALL_FUNC
 
 }  // namespace phi

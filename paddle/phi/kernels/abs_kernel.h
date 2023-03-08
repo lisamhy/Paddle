@@ -16,10 +16,21 @@
 
 #include "paddle/phi/core/dense_tensor.h"
 #include "paddle/phi/core/device_context.h"
+#include "paddle/phi/infermeta/unary.h"
 
 namespace phi {
 
 template <typename T, typename Context>
 void AbsKernel(const Context& ctx, const DenseTensor& x, DenseTensor* out);
+
+
+template <typename T, typename Context>
+DenseTensor Abs(const Context& ctx, const DenseTensor& x) { 
+    DenseTensor dense_out;
+    MetaTensor meta_out(&dense_out);
+    UnchangedInferMeta(x, &meta_out);   
+    AbsKernel(ctx, x, &dense_out);
+    return dense_out;
+}
 
 }  // namespace phi

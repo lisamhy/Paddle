@@ -15,6 +15,7 @@
 #pragma once
 
 #include "paddle/phi/core/dense_tensor.h"
+#include "paddle/phi/infermeta/unary.h"
 
 namespace phi {
 
@@ -32,5 +33,17 @@ void AMaxKernel(const Context& dev_ctx,
                 const std::vector<int64_t>& dims,
                 bool keep_dim,
                 DenseTensor* out);
+
+template <typename T, typename Context>
+DenseTensor AMax(const Context& dev_ctx,
+                 const DenseTensor& x,
+                 const std::vector<int64_t>& dims,
+                 bool keep_dim) {
+  DenseTensor out;
+  MetaTensor meta_out(out);
+  ReduceInferMeta(x, dims, keep_dim, &meta_out);
+  AMaxKernel<T, Context>(dev_ctx, x, dims, keep_dim, &out);
+  return out;
+}
 
 }  // namespace phi
