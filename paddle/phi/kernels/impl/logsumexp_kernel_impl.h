@@ -31,8 +31,8 @@
 #include "paddle/phi/kernels/where_kernel.h"
 #include "paddle/phi/kernels/elementwise_subtract_kernel.h"
 #include "paddle/phi/kernels/elementwise_add_kernel.h"
+#include "paddle/phi/kernels/where_kernel.h"
 #include "paddle/utils/array_ref.h"
-
 
 namespace phi {
 
@@ -186,6 +186,23 @@ static DenseTensor squeeze_multiple(const DenseTensor& self, IntArrayRef dims) {
 }
 
 template <typename T, typename Context>
+DenseTensor MaskedFill(const Context& dev_ctx,
+                      const DenseTensor& x,
+                      const DenseTensor& mask,
+                      const float& value) {
+   PADDLE_ENFORCE(x.dims() == mask.dims(), 
+      "incompatible dimensions."
+      "x.shape != mask.shape, x.shape=%s, mask.shape=%s", 
+      x.dims(), mask.dims()
+   );
+   PADDLE_ENFORCE(mask.dtype() == phi::DataType::BOOL, 
+      "mask dtype must be bool, but is %s.", mask.dtype());
+   auto yes = Fill<T, Context>(dev_ctx, vectorize<int>(x.dims()), value);
+   auto out = Where<T,Context>(dev_ctx, mask, yes, x);
+   return out;
+}
+
+template <typename T, typename Context>
 void LogsumexpKernel(const Context& dev_ctx,
                      const DenseTensor& x,
                      const std::vector<int64_t>& axis,
@@ -194,9 +211,8 @@ void LogsumexpKernel(const Context& dev_ctx,
                      DenseTensor* out) {
   dev_ctx.template Alloc<T>(out);
 
+  // can't take max of empty tensor
   if(x.numel() != 0){
-
-  } else {
     // y = log(reducem_sum(exp(x - amax(x, dims)))) + amax(x, dims)
     // amax(x)
     auto maxes = AMax<T,Context>(dev_ctx, x,  axis, true);
@@ -205,8 +221,10 @@ void LogsumexpKernel(const Context& dev_ctx,
 
     std::vector<int> maxes_squeezed_shape = vectorize<int>(maxes_squeezed.dims());
     auto infinity = Fill<T, Context>(dev_ctx, maxes_squeezed_shape, INFINITY);
-    // auto maxes_squeezed = MaskedFillInplace<T, Context>(dev_ctx, maxes_squeezed, 
-    //     EqualAll<T, Context>(dev_ctx, Abs<T, Context>(dev_ctx, maxes_squeezed), infinity) 0);
+
+    auto abs = Abs<T, Context>(dev_ctx, maxes_squeezed);
+    auto is_infinity = EqualAll<T, Context>(dev_ctx, abs, infinity);
+    auto maxes_squeezed_filled = MaskedFill<T, Context>(dev_ctx, maxes_squeezed, is_infinity, 0);
 
     // x - amax(x)
     auto sub = Subtract<T, Context>(dev_ctx,x, maxes);
@@ -218,9 +236,15 @@ void LogsumexpKernel(const Context& dev_ctx,
     // log(exp(x - amax(x)))
     auto log = Log<T,Context>(dev_ctx, sum);
     // y = log(exp(x - amax(x))) + amax(x)
-    *out = Add<T, Context>(dev_ctx, log, maxes_squeezed);
+    *out = Add<T, Context>(dev_ctx, log, maxes_squeezed_filled);
 
     VLOG(1) << "logsumexp: " << *out;
+    return;
+  } else {
+    auto exp = Exp<T,Context>(dev_ctx, x);
+    auto sum = Sum<T,Context>(dev_ctx, exp, axis, x.dtype(), keepdim);
+    *out = Log<T,Context>(dev_ctx, sum);
+    VLOG(1) << "logsumexp numel=0: " << *out;
     return;
   }
   

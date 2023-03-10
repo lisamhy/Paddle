@@ -32,7 +32,7 @@ inline void CompareKernelImpl(const Context& ctx,
                               DenseTensor* out);
 
 template <typename T, typename Context, typename Functor>
-inline void CompareAllKernelImpl(const Context& ctx,
+void CompareAllKernelImpl(const Context& ctx,
                                  const DenseTensor& x,
                                  const DenseTensor& y,
                                  DenseTensor* out);
@@ -105,15 +105,15 @@ DEFINE_COMPARE_ALL_KERNEL(EqualAllKernel, funcs::EqualFunctor)
 #undef DEFINE_COMPARE_ALL_KERNEL
 
 
-#define DEFINE_COMPARE_ALL_FUNC(name)      \
+#define DEFINE_COMPARE_ALL_FUNC(__name)      \
   template <typename T, typename Context>                          \
-  DenseTensor name(const Context& ctx,                             \
+  DenseTensor __name(const Context& ctx,                           \
                     const DenseTensor& x,                          \
                     const DenseTensor& y) {                        \
     DenseTensor out;                                               \
     MetaTensor meta_out(out);                                       \
     UnchangedInferMeta(x, &meta_out);                               \
-    EqualAllKernel<T, Context>(ctx, x, y, &out);                \
+    EqualAllKernel<T, Context>(ctx, x, y, &out);                    \
     return out;                                                     \
   }
 

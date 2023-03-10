@@ -29,7 +29,7 @@ DenseTensor Abs(const Context& ctx, const DenseTensor& x) {
     DenseTensor dense_out;
     MetaTensor meta_out(&dense_out);
     UnchangedInferMeta(x, &meta_out);   
-    AbsKernel(ctx, x, &dense_out);
+    AbsKernel<T, Context>(ctx, x, &dense_out);
     return dense_out;
 }
 
