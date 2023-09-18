@@ -121,6 +121,27 @@ void gpu_scatter_add_kernel(phi::DenseTensor self,
                             const phi::DeviceContext& ctx);
 
 template <typename tensor_t, typename index_t>
+void gpu_scatter_mean_kernel(phi::DenseTensor self,
+                             int dim,
+                             const phi::DenseTensor& index,
+                             phi::DenseTensor src,
+                             const phi::DeviceContext& ctx);
+
+template <typename tensor_t, typename index_t>
+void gpu_scatter_min_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx);
+
+template <typename tensor_t, typename index_t>
+void gpu_scatter_max_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx);
+
+template <typename tensor_t, typename index_t>
 void gpu_scatter_mul_kernel(phi::DenseTensor self,
                             int dim,
                             const phi::DenseTensor& index,

@@ -54,6 +54,28 @@ class ReduceMul {
 };
 static ReduceMul reduce_mul;
 
+class ReduceMin {
+ public:
+  template <
+      typename tensor_t,
+      std::enable_if_t<!std::is_same<tensor_t, uint8_t>::value>* = nullptr>
+  __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    phi::CudaAtomicMin(self_data, *src_data);
+  }
+};
+static ReduceMin reduce_min;
+
+class ReduceMax {
+ public:
+  template <
+      typename tensor_t,
+      std::enable_if_t<!std::is_same<tensor_t, uint8_t>::value>* = nullptr>
+  __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    phi::CudaAtomicMax(self_data, *src_data);
+  }
+};
+static ReduceMax reduce_max;
+
 template <typename tensor_t,
           typename index_t,
           typename func_t,
@@ -193,6 +215,42 @@ void gpu_scatter_add_kernel(phi::DenseTensor self,
                              index_t,
                              /*is_scatter_like=*/true>()(
       self, dim, index, src, "scatter_add_gpu", reduce_add, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void gpu_scatter_mean_kernel(phi::DenseTensor self,
+                             int dim,
+                             const phi::DenseTensor& index,
+                             phi::DenseTensor src,
+                             const phi::DeviceContext& ctx) {
+  gpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true>()(
+      self, dim, index, src, "scatter_mean_gpu", reduce_add, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void gpu_scatter_min_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx) {
+  gpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true>()(
+      self, dim, index, src, "scatter_min_gpu", reduce_min, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void gpu_scatter_max_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx) {
+  gpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true>()(
+      self, dim, index, src, "scatter_max_gpu", reduce_max, ctx);
 }
 
 template <typename tensor_t, typename index_t>

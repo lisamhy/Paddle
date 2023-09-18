@@ -100,9 +100,9 @@ struct cpu_gather_scatter_functor {
       return;
     }
 
-    phi::CPUContext cpu_ctx;
-    auto self_cnt = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
-    auto* self_cnt_data = self_cnt.data<tensor_t>();
+    // phi::CPUContext cpu_ctx;
+    // auto self_cnt = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
+    // auto* self_cnt_data = self_cnt.data<tensor_t>();
 
     int64_t select_dim_size = index_dims[dim];
     // index matrix has different shape with self matrix or src matrix.
@@ -150,23 +150,23 @@ struct cpu_gather_scatter_functor {
           src_idx = is_scatter_like ? index_idx : replace_index;
           reduce_op((tensor_t*)(self_data + self_idx),  // NOLINT
                     (tensor_t*)(src_data + src_idx));   // NOLINT
-          self_cnt_data[self_idx] += 1;
+          // self_cnt_data[self_idx] += 1;
           index_idx++;
         }
       }
     }
 
-    if (is_mean) {
-      auto zeros = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
-      auto ones = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
-      phi::DenseTensor mask;
-      EqualAllKernel<tensor_t, phi::CPUContext>(
-          cpu_ctx, self_cnt, zeros, int axis, &mask);
-      phi::DenseTensor cnt;
-      WhereKernel<tensor_t, phi::CPUContext>(
-          cpu_ctx, mask, ones, self_cnt, cnt);
-      self = phi::Divide<tensor_t>(cpu_ctx, self, cnt);
-    }
+    // if (is_mean) {
+    //   auto zeros = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
+    //   auto ones = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 1);
+    //   phi::DenseTensor mask;
+    //   EqualAllKernel<tensor_t, phi::CPUContext>(
+    //       cpu_ctx, self_cnt, zeros, &mask);
+    //   phi::DenseTensor cnt;
+    //   WhereKernel<tensor_t, phi::CPUContext>(
+    //       cpu_ctx, mask, ones, self_cnt, cnt);
+    //   self = phi::Divide<tensor_t>(cpu_ctx, self, cnt);
+    // }
   }
 };
 
