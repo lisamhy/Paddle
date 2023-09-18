@@ -62,10 +62,35 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       phi::funcs::cpu_scatter_assign_kernel<T, int64_t>(
           *out, axis, index, value, dev_ctx);
     }
+  } else if (reduce == "min") {
+    if (index_type == DataType::INT32) {
+      phi::funcs::cpu_scatter_min_kernel<T, int32_t>(
+          *out, axis, index, value, dev_ctx);
+    } else if (index_type == DataType::INT64) {
+      phi::funcs::cpu_scatter_min_kernel<T, int64_t>(
+          *out, axis, index, value, dev_ctx);
+    }
+  } else if (reduce == "max") {
+    if (index_type == DataType::INT32) {
+      phi::funcs::cpu_scatter_max_kernel<T, int32_t>(
+          *out, axis, index, value, dev_ctx);
+    } else if (index_type == DataType::INT64) {
+      phi::funcs::cpu_scatter_max_kernel<T, int64_t>(
+          *out, axis, index, value, dev_ctx);
+    }
+  } else if (reduce == "mean") {
+    if (index_type == DataType::INT32) {
+      phi::funcs::cpu_scatter_mean_kernel<T, int32_t>(
+          *out, axis, index, value, dev_ctx);
+    } else if (index_type == DataType::INT64) {
+      phi::funcs::cpu_scatter_mean_kernel<T, int64_t>(
+          *out, axis, index, value, dev_ctx);
+    }
   } else {
     PADDLE_THROW(errors::InvalidArgument(
         "can not support reduce: '%s' for scatter kernel, only "
-        "support reduce op: 'add', 'assign', 'mul' and 'multiply', the "
+        "support reduce op: 'add', 'assign', 'mul' or 'multiply', 'max', "
+        "'min',and 'mean', the "
         "default reduce "
         "op is 'assign' ",
         reduce));

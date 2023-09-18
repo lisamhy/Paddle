@@ -39,6 +39,26 @@ class ReduceAdd {
 };
 static ReduceAdd reduce_add;
 
+class ReduceMax {
+ public:
+  template <typename tensor_t>
+  void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    *self_data =
+        std::isnan(*src_data) ? *src_data : std::max(*self_data, *src_data);
+  }
+};
+static ReduceMax reduce_max;
+
+class ReduceMin {
+ public:
+  template <typename tensor_t>
+  void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    *self_data =
+        std::isnan(*src_data) ? *src_data : std::min(*self_data, *src_data);
+  }
+};
+static ReduceMin reduce_min;
+
 class ReduceMultiply {
  public:
   template <typename tensor_t>
@@ -50,7 +70,8 @@ static ReduceMultiply reduce_mul;
 
 template <typename tensor_t,
           typename index_t = int64_t,
-          bool is_scatter_like = true>
+          bool is_scatter_like = true,
+          bool is_mean = false>
 struct cpu_gather_scatter_functor {
   template <typename func_t>
   void operator()(phi::DenseTensor self,
@@ -78,6 +99,11 @@ struct cpu_gather_scatter_functor {
           "self_size, src_size, index_size cannot be 0");
       return;
     }
+
+    phi::CPUContext cpu_ctx;
+    auto self_cnt = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
+    auto* self_cnt_data = self_cnt.data<tensor_t>();
+
     int64_t select_dim_size = index_dims[dim];
     // index matrix has different shape with self matrix or src matrix.
     int replaced_select_dim_size =
@@ -124,9 +150,22 @@ struct cpu_gather_scatter_functor {
           src_idx = is_scatter_like ? index_idx : replace_index;
           reduce_op((tensor_t*)(self_data + self_idx),  // NOLINT
                     (tensor_t*)(src_data + src_idx));   // NOLINT
+          self_cnt_data[self_idx] += 1;
           index_idx++;
         }
       }
+    }
+
+    if (is_mean) {
+      auto zeros = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
+      auto ones = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
+      phi::DenseTensor mask;
+      EqualAllKernel<tensor_t, phi::CPUContext>(
+          cpu_ctx, self_cnt, zeros, int axis, &mask);
+      phi::DenseTensor cnt;
+      WhereKernel<tensor_t, phi::CPUContext>(
+          cpu_ctx, mask, ones, self_cnt, cnt);
+      self = phi::Divide<tensor_t>(cpu_ctx, self, cnt);
     }
   }
 };
@@ -165,6 +204,43 @@ void cpu_scatter_add_kernel(phi::DenseTensor self,
                              index_t,
                              /*is_scatter_like=*/true>()(
       self, dim, index, src, "scatter_add_cpu", reduce_add, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void cpu_scatter_mean_kernel(phi::DenseTensor self,
+                             int dim,
+                             const phi::DenseTensor& index,
+                             phi::DenseTensor src,
+                             const phi::DeviceContext& ctx) {
+  cpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true,
+                             /*is_mean*/ true>()(
+      self, dim, index, src, "scatter_mean_cpu", reduce_add, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void cpu_scatter_max_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx) {
+  cpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true>()(
+      self, dim, index, src, "scatter_max_cpu", reduce_max, ctx);
+}
+
+template <typename tensor_t, typename index_t>
+void cpu_scatter_min_kernel(phi::DenseTensor self,
+                            int dim,
+                            const phi::DenseTensor& index,
+                            phi::DenseTensor src,
+                            const phi::DeviceContext& ctx) {
+  cpu_gather_scatter_functor<tensor_t,
+                             index_t,
+                             /*is_scatter_like=*/true>()(
+      self, dim, index, src, "scatter_min_cpu", reduce_min, ctx);
 }
 
 template <typename tensor_t, typename index_t>
