@@ -311,6 +311,43 @@ CUDA_ATOMIC_WRAPPER(Add, complex<double>) {
 }
 
 // Atomic multiplication implementation.
+CUDA_ATOMIC_WRAPPER(Mul, int64_t) {
+  // Here, we check long long int must be int64_t.
+  static_assert(sizeof(int64_t) == sizeof(long long int),  // NOLINT
+                "long long should be int64");
+  unsigned long long int *address_as_ull =       // NOLINT
+      (unsigned long long int *)address;         // NOLINT
+  unsigned long long int old = *address_as_ull;  // NOLINT
+  unsigned long long int assumed;                // NOLINT
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull,
+                    assumed,
+                    static_cast<unsigned long long int>(  // NOLINT
+                        val * static_cast<int64_t>(assumed)));
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN
+    // != NaN)
+  } while (assumed != old);
+
+  return static_cast<int64_t>(old);
+}
+
+CUDA_ATOMIC_WRAPPER(Mul, int) {
+  int old = *address;
+  int assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS(address, assumed, val * assumed);
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
+    // NaN)
+  } while (assumed != old);
+
+  return old;
+}
+
 #ifdef PADDLE_CUDA_FP16
 CUDA_ATOMIC_WRAPPER(Mul, phi::dtype::float16) {
   unsigned int *address_as_ui =
