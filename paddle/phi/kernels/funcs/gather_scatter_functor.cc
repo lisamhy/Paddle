@@ -70,8 +70,7 @@ static ReduceMultiply reduce_mul;
 
 template <typename tensor_t,
           typename index_t = int64_t,
-          bool is_scatter_like = true,
-          bool is_mean = false>
+          bool is_scatter_like = true>
 struct cpu_gather_scatter_functor {
   template <typename func_t>
   void operator()(phi::DenseTensor self,
@@ -150,23 +149,10 @@ struct cpu_gather_scatter_functor {
           src_idx = is_scatter_like ? index_idx : replace_index;
           reduce_op((tensor_t*)(self_data + self_idx),  // NOLINT
                     (tensor_t*)(src_data + src_idx));   // NOLINT
-          // self_cnt_data[self_idx] += 1;
           index_idx++;
         }
       }
     }
-
-    // if (is_mean) {
-    //   auto zeros = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 0);
-    //   auto ones = Full<tensor_t, phi::CPUCOntext>(cpu_ctx, self_dims, 1);
-    //   phi::DenseTensor mask;
-    //   EqualAllKernel<tensor_t, phi::CPUContext>(
-    //       cpu_ctx, self_cnt, zeros, &mask);
-    //   phi::DenseTensor cnt;
-    //   WhereKernel<tensor_t, phi::CPUContext>(
-    //       cpu_ctx, mask, ones, self_cnt, cnt);
-    //   self = phi::Divide<tensor_t>(cpu_ctx, self, cnt);
-    // }
   }
 };
 
@@ -214,8 +200,7 @@ void cpu_scatter_mean_kernel(phi::DenseTensor self,
                              const phi::DeviceContext& ctx) {
   cpu_gather_scatter_functor<tensor_t,
                              index_t,
-                             /*is_scatter_like=*/true,
-                             /*is_mean*/ true>()(
+                             /*is_scatter_like=*/true>()(
       self, dim, index, src, "scatter_mean_cpu", reduce_add, ctx);
 }
 
@@ -296,8 +281,12 @@ void cpu_scatter_input_grad_kernel(phi::DenseTensor self UNUSED,
 Instantiate_Template_Function(cpu_gather_kernel)
     Instantiate_Template_Function(cpu_scatter_assign_kernel)
         Instantiate_Template_Function(cpu_scatter_add_kernel)
-            Instantiate_Template_Function(cpu_scatter_mul_kernel)
-                Instantiate_Template_Function(cpu_scatter_input_grad_kernel)
+            Instantiate_Template_Function(cpu_scatter_mean_kernel)
+                Instantiate_Template_Function(cpu_scatter_min_kernel)
+                    Instantiate_Template_Function(cpu_scatter_max_kernel)
+                        Instantiate_Template_Function(cpu_scatter_mul_kernel)
+                            Instantiate_Template_Function(
+                                cpu_scatter_input_grad_kernel)
 
 }  // namespace funcs
 }  // namespace phi

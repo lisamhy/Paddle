@@ -62,9 +62,14 @@ class ReduceMin {
   __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
     phi::CudaAtomicMin(self_data, *src_data);
   }
+
+  template <typename tensor_t,
+            std::enable_if_t<std::is_same<tensor_t, uint8_t>::value>* = nullptr>
+  __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    *self_data = min(*self_data, *src_data);
+  }
 };
 static ReduceMin reduce_min;
-
 class ReduceMax {
  public:
   template <
@@ -72,6 +77,12 @@ class ReduceMax {
       std::enable_if_t<!std::is_same<tensor_t, uint8_t>::value>* = nullptr>
   __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
     phi::CudaAtomicMax(self_data, *src_data);
+  }
+
+  template <typename tensor_t,
+            std::enable_if_t<std::is_same<tensor_t, uint8_t>::value>* = nullptr>
+  __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    *self_data = max(*self_data, *src_data);
   }
 };
 static ReduceMax reduce_max;
@@ -329,8 +340,12 @@ void gpu_scatter_input_grad_kernel(phi::DenseTensor self,
 Instantiate_Template_Function(gpu_gather_kernel)
     Instantiate_Template_Function(gpu_scatter_assign_kernel)
         Instantiate_Template_Function(gpu_scatter_add_kernel)
-            Instantiate_Template_Function(gpu_scatter_mul_kernel)
-                Instantiate_Template_Function(gpu_scatter_input_grad_kernel)
+            Instantiate_Template_Function(gpu_scatter_mean_kernel)
+                Instantiate_Template_Function(gpu_scatter_min_kernel)
+                    Instantiate_Template_Function(gpu_scatter_max_kernel)
+                        Instantiate_Template_Function(gpu_scatter_mul_kernel)
+                            Instantiate_Template_Function(
+                                gpu_scatter_input_grad_kernel)
 
 }  // namespace funcs
 }  // namespace phi
