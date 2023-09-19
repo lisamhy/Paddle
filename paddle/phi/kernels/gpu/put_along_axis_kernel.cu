@@ -24,9 +24,9 @@
 #include "paddle/phi/kernels/compare_kernel.h"
 #include "paddle/phi/kernels/elementwise_divide_kernel.h"
 #include "paddle/phi/kernels/full_kernel.h"
+#include "paddle/phi/kernels/funcs/math_function.h"
 #include "paddle/phi/kernels/index_add_kernel.h"
 #include "paddle/phi/kernels/where_kernel.h"
-
 namespace phi {
 
 template <typename T, typename Context>
@@ -36,6 +36,7 @@ void PutAlongAxisKernel(const Context& dev_ctx,
                         const DenseTensor& value,
                         int axis,
                         const std::string& reduce,
+                        bool include_self,
                         DenseTensor* out) {
   PADDLE_ENFORCE_EQ(dev_ctx.GetPlace().GetType() == phi::AllocationType::GPU,
                     true,
@@ -44,7 +45,27 @@ void PutAlongAxisKernel(const Context& dev_ctx,
 
   const auto& index_type = index.dtype();
 
-  phi::Copy(dev_ctx, x, dev_ctx.GetPlace(), false, out);
+  if (include_self) {
+    phi::Copy(dev_ctx, x, dev_ctx.GetPlace(), false, out);
+  } else {
+    T init_val;
+    if (reduce == "mul" || reduce == "multiply") {
+      init_val = static_cast<T>(1);
+    } else if (reduce == "amin") {
+      init_val = std::numeric_limits<T>::has_infinity
+                     ? std::numeric_limits<T>::infinity()
+                     : std::numeric_limits<T>::max();
+    } else if (reduce == "amax") {
+      init_val = std::numeric_limits<T>::has_infinity
+                     ? -std::numeric_limits<T>::infinity()
+                     : std::numeric_limits<T>::lowest();
+    } else {
+      init_val = static_cast<T>(0);
+    }
+    auto init = Full<T, Context>(dev_ctx, vectorize(x.dims()), init_val);
+    phi::Copy(dev_ctx, init, dev_ctx.GetPlace(), false, out);
+  }
+
   if (reduce == "add") {
     if (index_type == DataType::INT32) {
       phi::funcs::gpu_scatter_add_kernel<T, int32_t>(
@@ -69,7 +90,7 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       phi::funcs::gpu_scatter_assign_kernel<T, int64_t>(
           *out, axis, index, value, dev_ctx);
     }
-  } else if (reduce == "min") {
+  } else if (reduce == "amin") {
     if (index_type == DataType::INT32) {
       phi::funcs::gpu_scatter_min_kernel<T, int32_t>(
           *out, axis, index, value, dev_ctx);
@@ -77,7 +98,7 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       phi::funcs::gpu_scatter_min_kernel<T, int64_t>(
           *out, axis, index, value, dev_ctx);
     }
-  } else if (reduce == "max") {
+  } else if (reduce == "amax") {
     if (index_type == DataType::INT32) {
       phi::funcs::gpu_scatter_max_kernel<T, int32_t>(
           *out, axis, index, value, dev_ctx);
@@ -86,31 +107,27 @@ void PutAlongAxisKernel(const Context& dev_ctx,
           *out, axis, index, value, dev_ctx);
     }
   } else if (reduce == "mean") {
-    auto self_dims = vectorize(out->dims());
-    auto zeros = Full<T, Context>(dev_ctx, self_dims, 0);
-    auto ones = Full<T, Context>(dev_ctx, self_dims, 1);
+    auto self_dims = out->dims();
+    auto zeros = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
+    auto ones = Full<T, Context>(dev_ctx, vectorize(self_dims), 1);
 
-    bool include_self = false;
     auto counts = include_self ? ones : zeros;
 
     auto src_ones = Full<T, Context>(dev_ctx, vectorize(value.dims()), 1);
-    IndexAddKernel<T, Context>(dev_ctx, counts, index, src_ones, axis, &counts);
+    auto src_cnts =
+        IndexAdd<T, Context>(dev_ctx, counts, index, src_ones, axis);
+    auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
+    auto cnt = Where<T, Context>(dev_ctx, mask, ones, counts);
 
-    DenseTensor mask;
-    EqualKernel<T, Context>(dev_ctx, counts, zeros, &mask);
-
-    DenseTensor cnt;
-    WhereKernel<T, Context>(dev_ctx, mask, ones, counts, &cnt);
-
+    auto sum = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
     if (index_type == DataType::INT32) {
-      phi::funcs::gpu_scatter_mean_kernel<T, int32_t>(
-          *out, axis, index, value, dev_ctx);
+      phi::funcs::cpu_scatter_mean_kernel<T, int32_t>(
+          sum, axis, index, value, dev_ctx);
     } else if (index_type == DataType::INT64) {
-      phi::funcs::gpu_scatter_mean_kernel<T, int64_t>(
-          *out, axis, index, value, dev_ctx);
+      phi::funcs::cpu_scatter_mean_kernel<T, int64_t>(
+          sum, axis, index, value, dev_ctx);
     }
-
-    *out = phi::Divide<T>(dev_ctx, *out, cnt);
+    *out = phi::Divide<T>(dev_ctx, sum, cnt);
   } else {
     PADDLE_THROW(errors::InvalidArgument(
         "can not support reduce: '%s' for scatter kernel, only "

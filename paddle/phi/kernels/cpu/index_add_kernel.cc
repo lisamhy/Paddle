@@ -19,6 +19,8 @@
 #include "paddle/phi/kernels/cpu/index_add_impl.h"
 #include "paddle/phi/kernels/funcs/eigen/common.h"
 
+#include "paddle/phi/core/dense_tensor.h"
+
 namespace phi {
 
 template <typename T, typename Context>

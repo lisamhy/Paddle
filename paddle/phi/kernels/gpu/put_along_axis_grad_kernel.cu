@@ -30,6 +30,7 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
                             const DenseTensor& out_grad,
                             int axis,
                             const std::string& reduce,
+                            bool include_self,
                             DenseTensor* x_grad,
                             DenseTensor* value_grad) {
   PADDLE_ENFORCE_EQ(dev_ctx.GetPlace().GetType() == phi::AllocationType::GPU,

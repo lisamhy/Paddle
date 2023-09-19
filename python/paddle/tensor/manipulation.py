@@ -4641,7 +4641,9 @@ def take_along_axis(arr, indices, axis):
         return result
 
 
-def put_along_axis(arr, indices, values, axis, reduce='assign'):
+def put_along_axis(
+    arr, indices, values, axis, reduce='assign', include_self=True
+):
     """
     Put values into the destination array by given indices matrix along the designated axis.
 
@@ -4650,7 +4652,8 @@ def put_along_axis(arr, indices, values, axis, reduce='assign'):
         indices (Tensor) : Indices to put along each 1d slice of arr. This must match the dimension of arr,
             and need to broadcast against arr. Supported data type are int and int64.
         axis (int) : The axis to put 1d slices along.
-        reduce (str, optional): The reduce operation, default is 'assign', support 'add', 'assign', 'mul' and 'multiply', 'mean', 'min', 'max'.
+        reduce (str, optional): The reduce operation, default is 'assign', support 'add', 'assign', 'mul' and 'multiply', 'mean', 'amin', 'amax'.
+        include_self (bool, optional): Whether to include self in the output. default is True.
 
     Returns:
         Tensor, The indexed element, same dtype with arr
@@ -4685,7 +4688,9 @@ def put_along_axis(arr, indices, values, axis, reduce='assign'):
         if broadcast_shape:
             indices = paddle.broadcast_to(indices, broadcast_shape)
         values = paddle.broadcast_to(values, indices.shape)
-        return _C_ops.put_along_axis(arr, indices, values, axis, reduce)
+        return _C_ops.put_along_axis(
+            arr, indices, values, axis, reduce, include_self
+        )
     else:
         check_variable_and_dtype(
             arr,
@@ -4713,14 +4718,20 @@ def put_along_axis(arr, indices, values, axis, reduce='assign'):
         helper.append_op(
             type="put_along_axis",
             inputs={"Input": arr, "Index": indices, "Value": values},
-            attrs={"Axis": axis, "Reduce": reduce},
+            attrs={
+                "Axis": axis,
+                "Reduce": reduce,
+                "include_self": include_self,
+            },
             outputs={"Result": result},
         )
         return result
 
 
 @inplace_apis_in_dygraph_only
-def put_along_axis_(arr, indices, values, axis, reduce='assign'):
+def put_along_axis_(
+    arr, indices, values, axis, reduce='assign', include_self=True
+):
     r"""
     Inplace version of ``put_along_axis`` API, the output Tensor will be inplaced with input ``arr``.
     Please refer to :ref:`api_tensor_put_along_axis`.
@@ -4739,7 +4750,9 @@ def put_along_axis_(arr, indices, values, axis, reduce='assign'):
     if broadcast_shape:
         indices = paddle.broadcast_to(indices, broadcast_shape)
     values = paddle.broadcast_to(values, indices.shape)
-    return _C_ops.put_along_axis_(arr, indices, values, axis, reduce)
+    return _C_ops.put_along_axis_(
+        arr, indices, values, axis, reduce, include_self
+    )
 
 
 def index_add(x, index, axis, value, name=None):
