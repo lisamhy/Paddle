@@ -360,7 +360,7 @@ CUDA_ATOMIC_WRAPPER(Mul, phi::dtype::float16) {
     assumed = old;
     hsum.x = (size_t)address & 2 ? (old >> 16) : (old & 0xffff);  // NOLINT
 
-    hsum = bsum * val;
+    hsum = hsum * val;
     old = (size_t)address & 2 ? (old & 0xffff) | (hsum.x << 16)  // NOLINT
                               : (old & 0xffff0000) | hsum.x;     // NOLINT
     old = atomicCAS(address_as_ui, assumed, old);
@@ -386,7 +386,7 @@ CUDA_ATOMIC_WRAPPER(Mul, phi::dtype::bfloat16) {
     old = atomicCAS(address_as_ui, assumed, old);
   } while (assumed != old);
   bsum.x = (size_t)address & 2 ? (old >> 16) : (old & 0xffff);  // NOLINT
-  return bsum.x;
+  return bsum;
 }
 
 CUDA_ATOMIC_WRAPPER(Mul, double) {
@@ -397,10 +397,12 @@ CUDA_ATOMIC_WRAPPER(Mul, double) {
 
   do {
     assumed = old;
-      old = atomicCAS(address_as_ull, assumed,
-        __double_as_longlong(val * __longlong_as_double(assumed); // NOLINT
-      // Note: uses integer comparison to avoid hang in case of NaN (since NaN
-      // != NaN)
+    old = atomicCAS(
+        address_as_ull,
+        assumed,
+        __double_as_longlong(val * __longlong_as_double(assumed)));  // NOLINT
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN
+    // != NaN)
   } while (assumed != old);
 
   return __longlong_as_double(old);
