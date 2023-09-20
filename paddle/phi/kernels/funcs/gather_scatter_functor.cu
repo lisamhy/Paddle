@@ -46,10 +46,17 @@ static ReduceAdd reduce_add;
 
 class ReduceMul {
  public:
-  template <typename tensor_t>
+  template <
+      typename tensor_t,
+      std::enable_if_t<!std::is_same<tensor_t, uint8_t>::value>* = nullptr>
+  __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
+    phi::CudaAtomicMul(self_data, *src_data);
+  }
+
+  template <typename tensor_t,
+            std::enable_if_t<std::is_same<tensor_t, uint8_t>::value>* = nullptr>
   __device__ void operator()(tensor_t* self_data, tensor_t* src_data) const {
     *self_data *= *src_data;
-    // TODO(huangxu96) platform::CudaAtomicMul(*self_data, *src_data);
   }
 };
 static ReduceMul reduce_mul;

@@ -30,6 +30,36 @@
 
 namespace phi {
 
+template <typename T>
+std::ostream& print_tensor(std::ostream& os,
+                           const phi::DenseTensor& tensor,
+                           const char* tag) {
+  os << tag << " ";
+  auto inspect = tensor.data<T>();
+  auto element_num = tensor.numel();
+
+  os << "  - data: [";
+  // Note: int8_t && uint8_t is typedf of char, ostream unable to print properly
+  if (typeid(int8_t) == typeid(T) || typeid(uint8_t) == typeid(T)) {
+    if (element_num > 0) {
+      os << signed(inspect[0]);
+      for (int j = 1; j < element_num; ++j) {
+        os << " " << signed(inspect[j]);
+      }
+    }
+  } else {
+    if (element_num > 0) {
+      os << inspect[0];
+      for (int j = 1; j < element_num; ++j) {
+        os << " " << inspect[j];
+      }
+    }
+  }
+  os << "]";
+  os << std::endl;
+  return os;
+}
+
 template <typename T, typename Context>
 void PutAlongAxisKernel(const Context& dev_ctx,
                         const DenseTensor& x,
@@ -44,9 +74,17 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       true,
       errors::PreconditionNotMet("PutAlongAxisOpKernel only runs on CPU."));
 
-  if (include_self) {
-    phi::Copy(dev_ctx, x, dev_ctx.GetPlace(), false, out);
-  } else {
+  auto self_dims = x.dims();
+  auto zeros = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
+  auto ones = Full<T, Context>(dev_ctx, vectorize(self_dims), 1);
+
+  auto counts = include_self ? ones : zeros;
+  auto src_ones = Full<T, Context>(dev_ctx, vectorize(value.dims()), 1);
+  auto src_cnts = IndexAdd<T, Context>(dev_ctx, counts, index, src_ones, axis);
+
+  auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
+
+  if (!include_self) {
     T init_val;
     if (reduce == "mul" || reduce == "multiply") {
       init_val = static_cast<T>(1);
@@ -62,7 +100,11 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       init_val = static_cast<T>(0);
     }
 
-    funcs::SetConstant<Context, T>()(dev_ctx, out, init_val);
+    auto init = Full<T, Context>(dev_ctx, vectorize(self_dims), init_val);
+    dev_ctx.template Alloc<T>(out);
+    *out = Where<T, Context>(dev_ctx, mask, x, init);
+  } else {
+    phi::Copy(dev_ctx, x, dev_ctx.GetPlace(), false, out);
   }
 
   const auto& index_type = index.dtype();
@@ -107,29 +149,17 @@ void PutAlongAxisKernel(const Context& dev_ctx,
           *out, axis, index, value, dev_ctx);
     }
   } else if (reduce == "mean") {
-    auto self_dims = out->dims();
-    auto zeros = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
-    auto ones = Full<T, Context>(dev_ctx, vectorize(self_dims), 1);
+    auto cnt = Where<T, Context>(dev_ctx, mask, ones, src_cnts);
 
-    auto counts = include_self ? ones : zeros;
-
-    auto src_ones = Full<T, Context>(dev_ctx, vectorize(value.dims()), 1);
-    auto src_cnts =
-        IndexAdd<T, Context>(dev_ctx, counts, index, src_ones, axis);
-    auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
-    auto cnt = Where<T, Context>(dev_ctx, mask, ones, counts);
-
-    auto sum = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
     if (index_type == DataType::INT32) {
       phi::funcs::cpu_scatter_mean_kernel<T, int32_t>(
-          sum, axis, index, value, dev_ctx);
+          *out, axis, index, value, dev_ctx);
     } else if (index_type == DataType::INT64) {
       phi::funcs::cpu_scatter_mean_kernel<T, int64_t>(
-          sum, axis, index, value, dev_ctx);
+          *out, axis, index, value, dev_ctx);
     }
-  
-    *out = phi::Divide<T>(dev_ctx, sum, cnt);
-  
+
+    *out = phi::Divide<T>(dev_ctx, *out, cnt);
   } else {
     PADDLE_THROW(errors::InvalidArgument(
         "can not support reduce: '%s' for scatter kernel, only "
