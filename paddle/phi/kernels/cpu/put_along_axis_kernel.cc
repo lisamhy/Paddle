@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "paddle/phi/kernels/put_along_axis_kernel.h"
-
+// #include "paddle/fluid/framework/tensor_util.h"
 #include "paddle/phi/backends/cpu/cpu_context.h"
 #include "paddle/phi/common/data_type.h"
 #include "paddle/phi/common/place.h"
@@ -62,7 +62,7 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       init_val = static_cast<T>(0);
     }
 
-    SetConstant<Context, T>(dev_ctx, out, init_val);
+    funcs::SetConstant<Context, T>()(dev_ctx, out, init_val);
   }
 
   const auto& index_type = index.dtype();
@@ -118,7 +118,6 @@ void PutAlongAxisKernel(const Context& dev_ctx,
         IndexAdd<T, Context>(dev_ctx, counts, index, src_ones, axis);
     auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
     auto cnt = Where<T, Context>(dev_ctx, mask, ones, counts);
-    std::cout << "cnt:" << cnt << std::endl;
 
     auto sum = Full<T, Context>(dev_ctx, vectorize(self_dims), 0);
     if (index_type == DataType::INT32) {
@@ -128,9 +127,9 @@ void PutAlongAxisKernel(const Context& dev_ctx,
       phi::funcs::cpu_scatter_mean_kernel<T, int64_t>(
           sum, axis, index, value, dev_ctx);
     }
-    std::cout << "sum: " << sum << std::endl;
+  
     *out = phi::Divide<T>(dev_ctx, sum, cnt);
-    std::cout << "mean: " << *out << std::endl;
+  
   } else {
     PADDLE_THROW(errors::InvalidArgument(
         "can not support reduce: '%s' for scatter kernel, only "

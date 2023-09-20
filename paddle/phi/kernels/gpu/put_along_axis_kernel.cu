@@ -27,6 +27,7 @@
 #include "paddle/phi/kernels/funcs/math_function.h"
 #include "paddle/phi/kernels/index_add_kernel.h"
 #include "paddle/phi/kernels/where_kernel.h"
+
 namespace phi {
 
 template <typename T, typename Context>
@@ -62,8 +63,7 @@ void PutAlongAxisKernel(const Context& dev_ctx,
     } else {
       init_val = static_cast<T>(0);
     }
-    auto init = Full<T, Context>(dev_ctx, vectorize(x.dims()), init_val);
-    phi::Copy(dev_ctx, init, dev_ctx.GetPlace(), false, out);
+    funcs::SetConstant<Context,T>()(dev_ctx, out, init_val);
   }
 
   if (reduce == "add") {
