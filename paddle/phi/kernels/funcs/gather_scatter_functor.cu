@@ -304,12 +304,15 @@ __global__ void ScatterInputGradGPUKernel(tensor_t* grad_data,
       k + index * outer_dim_size + i * outer_dim_size * grad_select_dim_size;
   grad_data[replace_index] = 0;
 }
+
 template <typename tensor_t, typename index_t>
-void gpu_scatter_input_grad_kernel(phi::DenseTensor self,
-                                   int dim,
-                                   const phi::DenseTensor& index,
-                                   phi::DenseTensor grad,
-                                   const phi::DeviceContext& ctx) {
+void gpu_scatter_input_grad_mul_kernel(phi::DenseTensor self,
+                                       int dim,
+                                       const phi::DenseTensor& index,
+                                       const phi::DenseTensor& srouce,
+                                       bool include_self,
+                                       phi::DenseTensor grad,
+                                       const phi::DeviceContext& ctx) {
   auto* index_data = index.data<index_t>();
   auto* grad_data = grad.data<tensor_t>();
 

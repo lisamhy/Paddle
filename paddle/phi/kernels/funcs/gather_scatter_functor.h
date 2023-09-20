@@ -93,11 +93,13 @@ void cpu_scatter_mul_kernel(phi::DenseTensor self,
                             const phi::DeviceContext& ctx);
 
 template <typename tensor_t, typename index_t>
-void cpu_scatter_input_grad_kernel(phi::DenseTensor self,
-                                   int dim,
-                                   const phi::DenseTensor& index,
-                                   phi::DenseTensor result,
-                                   const phi::DeviceContext& ctx);
+void cpu_scatter_input_grad_mul_kernel(phi::DenseTensor self,
+                                       int dim,
+                                       const phi::DenseTensor& index,
+                                       const phi::DenseTensor& srouce,
+                                       bool include_self,
+                                       phi::DenseTensor result,
+                                       const phi::DeviceContext& ctx);
 
 template <typename tensor_t, typename index_t>
 void gpu_gather_kernel(phi::DenseTensor self,
