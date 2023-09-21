@@ -23,28 +23,9 @@
 #include "paddle/phi/kernels/funcs/gather_scatter_functor.h"
 #include "paddle/phi/kernels/gpu/unique_consecutive_functor.h"
 
+#include "paddle/phi/kernels/put_along_axis_kernel.h"
+
 namespace phi {
-
-template <typename T, typename Context>
-DenseTensor IndexReduceMul(const Context& dev_ctx,
-                           const DenseTensor& x,
-                           int axis,
-                           const DenseTensor& index,
-                           const DenseTensor& source,
-                           bool include_self) {
-  DenseTensor out;
-  out.Resize(x.dims());
-  dev_ctx.template Alloc<T>(&out);
-
-  if (index_type == DataType::INT32) {
-    phi::funcs::cpu_scatter_input_grad_mul_kernel<T, int32_t>(
-        x, axis, index, source, include_self, &out, dev_ctx);
-  } else {
-    phi::funcs::cpu_scatter_input_grad_mul_kernel<T, int32_t>(
-        x, axis, index, source, include_self, &out, dev_ctx);
-  }
-  return out;
-}
 
 template <typename T, typename Context>
 void PutAlongAxisGradKernel(const Context& dev_ctx,
@@ -80,28 +61,8 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
 
       // Tensor masked_self_result = masked_self.index_reduce(dim, index,
       // source, reduce, include_self);
-      DenseTensor masked_self_result;
-      masked_self_result.Resize(masked_self.dims());
-      dev_ctx.template Alloc<T>(&masked_self_result);
-      if (index_type == DataType::INT32) {
-        phi::funcs::cpu_scatter_input_grad_mul_kernel<T, int32_t>(
-            masked_self,
-            axis,
-            index,
-            source,
-            include_self,
-            &masked_self_result,
-            dev_ctx);
-      } else {
-        phi::funcs::cpu_scatter_input_grad_mul_kernel<T, int32_t>(
-            masked_self,
-            axis,
-            index,
-            source,
-            include_self,
-            &masked_self_result,
-            dev_ctx);
-      }
+      auto masked_self_result =
+          PutAlongAxis(dev_ctx, x, index, source, axis, reduce, include_self);
 
       // grad_self = grad * masked_self_result / masked_self;
       grad_mul_masked_self_result =
@@ -156,6 +117,7 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
     auto src_ones = Full<T, Context>(dev_ctx, vectorize(index.dims()), 1);
     auto src_cnts =
         IndexAdd<T, Context>(dev_ctx, counts, index, src_ones, axis);
+    // N = N.scatter_add(dim, index, ones_like(src));
 
     // N.masked_fill_(N == 0, 1);
     auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
@@ -169,17 +131,18 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
 
     if (value_grad) {
       // Tensor N_src = N.index_select(dim, index);
-
       DenseTensor N_src;
       N_src.Resize(source.dims());
       dev_ctx.template Alloc<T>(&N_src);
       IndexSelect<T, Context>(dev_ctx, N, index, &N_src, axis);
+      // Tensor N_src = N.gather(dim, index);
 
       // grad_src = grad.index_select(dim, index) / N_src;
       DenseTensor grad_src;
       grad_src.Resize(source.dims());
       dev_ctx.template Alloc<T>(&grad_src);
       IndexSelect<T, Context>(dev_ctx, out_grad, index, &grad_src, axis);
+      // grad_src = grad.gather(dim, index) / N_src;
 
       *value_grad = Divide<T, Context>(dev_ctx, grad_src, N_src);
     }
@@ -202,6 +165,7 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
     value.Resize(source.dims());
     dev_ctx.template Alloc<T>(&value);
     IndexSelect<T, Context>(dev_ctx, out, index, &value, axis);
+    // Tensor value = result.gather(dim, index);
 
     // Tensor self_is_result = (x == out).to(x.scalar_type());
     auto self_is_result = Equal<T, Context>(dev_ctx, x, out);
@@ -213,13 +177,15 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
     // source_is_result);
     auto N_to_distribute = IndexAdd<T, Context>(
         dev_ctx, self_is_result, index, source_is_result, axis);
+    // Tensor N_to_distribute = self_is_result.scatter_add(dim, index,
+    // src_is_result);
 
     // Tensor grad_distributed = grad / N_to_distribute;
     auto grad_distributed =
         Divide<T, Context>(dev_ctx, out_grad, N_to_distribute);
 
     if (x_grad) {
-      // grad_self = self_is_result * grad_distributed;
+      //  grad_self = self_is_result * grad_distributed;
       *x_grad = Multiply<T, Context>(dev_ctx, self_is_result, grad_distributed);
     }
 
@@ -231,6 +197,7 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
       dev_ctx.template Alloc<T>(&src_grad_dist);
       IndexSelect<T, Context>(
           dev_ctx, grad_distributed, index, &src_grad_dist, axis);
+      //  grad_src = (src == value) * grad_distributed.gather(dim, index);
 
       *value_grad =
           Multiply<T, Context>(dev_ctx, source_is_result, src_grad_dist);
@@ -258,6 +225,8 @@ void PutAlongAxisGradKernel(const Context& dev_ctx,
     auto mask = Equal<T, Context>(dev_ctx, src_cnts, zeros);
 
     *x_grad = Where<T, Context>(dev_ctx, mask, out_grad, zeros);
+
+    // grad_self = grad_self.scatter(dim, index, 0);
   }
 }
 

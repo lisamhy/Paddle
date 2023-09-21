@@ -18,6 +18,8 @@
 
 #include "paddle/phi/core/dense_tensor.h"
 
+#include "paddle/phi/infermeta/unary.h"
+
 namespace phi {
 
 template <typename T, typename Context>
@@ -29,5 +31,22 @@ void PutAlongAxisKernel(const Context& dev_ctx,
                         const std::string& reduce,
                         bool include_self,
                         DenseTensor* out);
+
+template <typename T, typename Context>
+DenseTensor PutAlongAxis(const Context& dev_ctx,
+                         const DenseTensor& x,
+                         const DenseTensor& index,
+                         const DenseTensor& value,
+                         int axis,
+                         const std::string& reduce,
+                         bool include_self) {
+  DenseTensor dense_out;
+  MetaTensor meta_out(&dense_out);
+  MetaTensor meta_x(&x);
+  UnchangedInferMeta(meta_x, &meta_out);
+  PutAlongAxisKernel<T, Context>(
+      dev_ctx, x, index, value, axis, reduce, include_self, &dense_out);
+  return dense_out;
+}
 
 }  // namespace phi
