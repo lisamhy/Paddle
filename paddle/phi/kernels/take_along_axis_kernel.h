@@ -36,6 +36,7 @@ DenseTensor TakeAlongAxis(const Context& dev_ctx,
   MetaTensor meta_x(&x);
   MetaTensor meta_index(&index);
   TakeAlongAxisInferMeta(meta_x, meta_index, axis, &meta_out);
+
   TakeAlongAxisKernel<T, Context>(dev_ctx, x, index, axis, &dense_out);
   return dense_out;
 }

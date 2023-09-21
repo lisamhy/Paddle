@@ -57,4 +57,17 @@ DenseTensor Equal(const Context& dev_ctx,
   return dense_out;
 }
 
+template <typename T, typename Context>
+DenseTensor GreaterThan(const Context& dev_ctx,
+                        const DenseTensor& x,
+                        const DenseTensor& y) {
+  DenseTensor dense_out;
+  MetaTensor meta_out(&dense_out);
+  MetaTensor meta_x(&x);
+  MetaTensor meta_y(&y);
+  CompareInferMeta(meta_x, meta_y, &meta_out);
+  GreaterThanKernel<T, Context>(dev_ctx, x, y, &dense_out);
+  return dense_out;
+}
+
 }  // namespace phi
